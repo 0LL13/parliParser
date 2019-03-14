@@ -1,0 +1,12 @@
+__pycache__
+test*
+wf18*
+wf19*
+wf2*
+backup*
+scraper_lib/most_likely*
+scraper_lib/__pycache__
+parli_data/test
+parli_data/wf*
+tags
+
