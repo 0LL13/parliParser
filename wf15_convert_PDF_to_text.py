@@ -82,7 +82,7 @@ def wf15_convert_PDF2text_and_save():
                         print(i, sent)
 
                     #if '16903' in start_end: sys.exit()
-                    if '11167' in start_end: sys.exit()
+                    if '8345' in start_end: sys.exit()
                     token = _save_the_contributions(legislature, key, protocol_nr,\
                             start_end, sentences)
 
@@ -167,9 +167,9 @@ def _PDF_to_text(mdl, base, first_names, last_names):
                     #    print(k, v)
                     boxes = _speech_converter(dict_of_boxes, mdl, first_names,\
                             last_names, kind, start, end)
-                    #print('--- boxes ---')
-                    #for i, box in enumerate(boxes):
-                    #    print(i, box)
+                    print('--- boxes ---')
+                    for i, box in enumerate(boxes):
+                        print(i, box)
                     if boxes == []:
                         continue
                     box_list = _mk_list_of_boxes(boxes, start, end)
@@ -195,18 +195,21 @@ def _mk_plain_text(boxes, mdl, mdl_names, start, end):
     #for i, box in enumerate(boxes):
     #    print(i, box)
     complete_text = _connect_boxes(boxes, german_words, mdl_names)
-    #print('--- complete_text ---', complete_text)
     sentences = nltk.sent_tokenize(complete_text, language='german')
+    #print('~~~ sentences after tokenizer ~~~')
+    #for i, sent in enumerate(sentences):
+    #    print(i, sent)
     sentences = _connect_sentences(sentences)
     sentences =  _get_rid_of_line_breaks_wth_hyphens(sentences, mdl_names)
     sentences = _get_rid_of_line_breaks(sentences)
     sentences = _find_words_sep_by_hyphens(sentences, mdl_names)
-    #print('~~~ sentences ~~~')
-    #for i, sent in enumerate(sentences):
-    #    print(i, sent)
+    sentences =  _find_words_sep_by_hyphens_within_sentence(sentences, mdl_names)
     sentences = _find_last_remarks(sentences)
     sentences = _find_final_phrase(sentences)
-    #print('### sentences ###', sentences)
+    print('### sentences ###')
+    for i, sent in enumerate(sents_w_quotes):
+        print(i, sent)
+    sys.exit()
 
     return sentences
 
@@ -218,95 +221,100 @@ def _mk_list_of_boxes(boxes, start, end):
     However, now is the only chance to find isolated text snippets that got lost
     during PDF to text conversion - I call this "PDF blunder".
     --> will try to put it at the right place and ask for forgiveness. If wrong,
-    an exception is raised.
-    Here, there is still the box with its x,y-coordinates running along to check for
-    PDF blunders, and the text of those boxes (again) stripped of header shmutz and
-    remarks. If a box does not appear to be out of context (checked by _is_part_of
-    _next_box) then its text will be appended to a list which will eventually returned.
+    too bad.
 
     Open question: What if the text fragments that got lost are longer than one line?
+                   --> If a fragment has more than 40 characters I'll treat it as an
+                       error with no consequences (no exception will be raised)
     Open question: What if the same word gets lost twice?
     Open question: What if two words have the same extension?
 
     Returns a list with texts as found in boxes coming from pdf2textbox
     '''
     box_list = list()
-    #boxes_to_iterate = boxes[:]
-    sep_boxes = list()
-    skip = False
-    counter = 0                 # counter tells how many boxes to skip later on
+    sep_boxes_before = list()
+    sep_boxes_after = list()
+    words = new_text = ''
+    nr_of_sep_boxes_before = 0       # tells how many boxes to take out of box_list
+    nr_of_sep_boxes_after = 0        # tells how many boxes to skip later on
     for i, box in enumerate(boxes):
-        if counter > 0:
-            counter -= 1
+        #print(i, box)
+        if nr_of_sep_boxes_after > 0:
+            print('nr_of_sep_boxes_after > 0, snipping this box:')
+            print(i, box)
+            nr_of_sep_boxes_after -= 1
             continue
         elif _could_be_box_w_missing_text(box):
             box_coords = _get_coords(box)
-            sep_boxes = _find_seperated_boxes(i, boxes, box_coords)
-            if sep_boxes == []:
-                words = _prepare_text(box.text, start, end)
-            else:
-                counter = len(sep_boxes)
-                oddies = _find_oddies(sep_boxes, box_coords)
-                gaps = _mk_dict_of_gaps_in_lines(oddies, box_coords)
-                for line_to_correct, gap_list in gaps.items():
-                    new_text = list()
-                    gaps, new_text = _fill_gaps(gaps, box, new_text)
-                    corrected_line = _correct_line(gaps, line_to_correct)
-                    index = line_to_correct - 1
-                    new_text.insert(index, corrected_line)
-                    words = new_text
-        #print(i, box, skip)
-        # words will be a list of words:
+            sep_boxes_before = _find_sep_boxes(i, boxes, box_coords, before=True)
+            sep_boxes_after = _find_sep_boxes(i, boxes, box_coords, after=True)
+            if len(sep_boxes_before) > 0:
+                new_text, nr_of_sep_boxes_before =\
+                        _mk_text_great_again(sep_boxes_before, box_coords, box)
+                index= len(box_list)
+                boxes_to_snip = index - nr_of_sep_boxes_before
+                nr_of_sep_boxes_before = 0
+                box_list = box_list[:boxes_to_snip]
+                box_list = _add_to_box_list(new_text, start, end, box_list)
+            if len(sep_boxes_after) > 0:
+                new_text, nr_of_sep_boxes_after =\
+                        _mk_text_great_again(sep_boxes_after, box_coords, box)
+                box_list = _add_to_box_list(new_text, start, end, box_list)
         else:
-            words = _prepare_text(box.text, start, end)
-
-        print('words.....................\n', words)
-        if not words or words == []:
-            continue
-        elif skip:
-            skip = False
-            continue
-        else:
-            text = ' '.join(w for w in words)
-            try:
-                next_box = boxes[i+1]
-            except IndexError:
-                box_list.append([text])
-                continue
-#        if _is_part_of_next_box(box, next_box):
-#            if _alert_and_decide(box, next_box, text):
-#                isolated_part = text
-#                print('isolated_part.........', isolated_part)
-#                next_words = _prepare_text(next_box.text, start, end)
-#                next_words = ' '.join(w for w in next_words)
-#                print('next_words............', next_words)
-#                skip, corrected_text = _correct_PDF_blunder(isolated_part, next_words)
-#                if not skip:
-#                    print('Could not match, will be left as is.')
-#                    box_list.append([text])
-#                else:
-#                    #two_sents = nltk.sent_tokenize(corrected_text, language='german')
-#                    #print('two_sents after tokenizing\n', two_sents)
-#                    #print('corrected_text without tokenizing\n', corrected_text)
-#                    box_list.append([corrected_text])
-#            else:
-#                box_list.append([text])
-#        else:
-#            box_list.append([text])
+            box_list = _add_to_box_list(box.text, start, end, box_list)
 
     #print('box_list in _mk_list_of_boxes')
     #for i, box in enumerate(box_list):
     #    print(i, box)
+
     return box_list
 
 
+def _add_to_box_list(new_text, start, end, box_list):
+    words = _prepare_text(new_text, start, end)
+    if not words or words == []:
+        pass
+    else:
+        text = ' '.join(w for w in words)
+        box_list.append([text])
+
+    return box_list
+
+
+def _mk_text_great_again(sep_boxes, box_coords, box):
+    '''
+    The problem I'm facing here is that I need to tell the function that calls
+    this one how many sep_boxes actually turned out to be accepted for correction.
+    Not all will, that much is sure, but how do I count this?
+    '''
+    nr_of_gaps = 0
+    new_text = list()
+    oddies = _find_oddies(sep_boxes, box_coords)
+    gaps = _mk_dict_of_gaps_in_lines(oddies, box_coords)
+    for k, v in gaps.items():
+        for _, vv in v.items():
+            for kee in vv.keys():
+                if kee == 'oddy':
+                    nr_of_gaps += 1
+    for line_to_correct, gap_dict in gaps.items():
+        gaps, new_text = _fill_gaps(gaps, box, new_text)
+        corrected_line = _correct_line(gaps, line_to_correct)
+        index = line_to_correct - 1
+        new_text.insert(index, corrected_line)
+    #sys.exit()
+
+    return new_text, nr_of_gaps
+
+
 def _correct_line(gaps, line_to_correct):
+    print('gaps, line_to_correct', gaps, line_to_correct)
     d = gaps[line_to_correct]
     best_fits = list()
     correct_line = list()
     for k, v in d.items():
         best_fits = sorted([bf for bf in v.keys() if bf != 'oddy' and bf > 0])
         for bf in best_fits:
+            print('bf, v[bf]', bf, v[bf])
             if v[bf] in correct_line:
                 continue
             else:
@@ -315,7 +323,7 @@ def _correct_line(gaps, line_to_correct):
                     correct_line.append(v['oddy'])
                 break
     correct_line = ' '.join(part for part in correct_line)
-    #print(correct_line)
+    print('corrected line', correct_line)
 
     return correct_line
 
@@ -333,23 +341,23 @@ def _could_be_box_w_missing_text(box):
        --> if nr_of_lines_in_fact > nr_of_lines_to_expect:
            --> this is a box where a PDF-blunder could have occured
            --> return True
+
     '''
     y_extension = box.y1 - box.y0
     nr_of_lines_to_expect = round(y_extension/11.8)
-    #print('nr_of_lines_to_expect', nr_of_lines_to_expect, y_extension)
+    print('nr_of_lines_to_expect', nr_of_lines_to_expect, y_extension)
 
     text = box.text
     text_split_in_lines = text.split('\n')
     text_split_in_lines = list(filter(None, text_split_in_lines))
     nr_of_lines_in_fact = len(text_split_in_lines)
-    #print('nr_of_lines_in_fact', nr_of_lines_in_fact)
+    print('nr_of_lines_in_fact', nr_of_lines_in_fact)
 
     if nr_of_lines_in_fact > nr_of_lines_to_expect:
-        #print('Found box where text could be missing')
-        #print('text:\n', text)
-        #print('text.split("\\n"):')
-        #for i, line in enumerate(text_split_in_lines):
-        #    print(i, line, len(line))
+        print('Found box where text could be missing')
+        print('text.split("\\n"):')
+        for i, line in enumerate(text_split_in_lines):
+            print(i, line, len(line))
         return True
 
     return False
@@ -364,27 +372,30 @@ def _get_coords(box):
     return box_coords
 
 
-def _find_seperated_boxes(i, boxes, box_coords):
+def _find_sep_boxes(i, boxes, box_coords, before=False, after=False):
     '''
     So, now I found a box that seems to have lost at least one word, which got
     delivered within a seperate box. Not good.
-    Go in one direction: boxes after the box in question. The reason why boxes before
-    will be neglected is that they will already be inside of box_list and I have
-    no idea how to reverse that.
+    Go in one direction: either boxes before or boxes after the box in question.
     Continue as long a box fits into the box in question, quit at first incident
     that box does not fit in.
     Obviously this only works inside a single column. If stuff from the left column
-    got into the right and vice versa it will be lost.
+    got into the right and vice versa it will be lost. And me, too.
 
     '''
-    #boxes_before = reversed(boxes[:i])
-    boxes_after = boxes[i+1:]
     box = boxes[i]
-
     sep_boxes = list()
+
+    if after:
+        boxes_after = boxes[i+1:]
+        boxes_to_check = boxes_after
+    elif before:
+        boxes_before = reversed(boxes[:i])
+        boxes_to_check = boxes_before
+
     token = True
     while token:
-        for b_o_x in boxes_after:
+        for b_o_x in boxes_to_check:
             b_o_x_coords = _get_coords (b_o_x)
             if _is_inside_of_box(box_coords, b_o_x_coords):
                 sep_boxes.append(b_o_x)
@@ -395,16 +406,18 @@ def _find_seperated_boxes(i, boxes, box_coords):
 
 
 def _find_oddies(sep_boxes, box_coords):
+    #print('_find_oddies ........................')
     x0, x1, y0, y1 = box_coords
     y_extension = y1 - y0
     nr_of_lines_to_expect = round(y_extension/11.8)
     oddies = dict()
     for j, sep_box in enumerate(sep_boxes):
+        #print('sep_box', sep_box)
         c = round((sep_box.x0 - x0) / 4.9)
-        for line in range(nr_of_lines_to_expect):
-            #print(line, sep_box.y0, y0 + (line+1)*11.8, sep_box.y1)
-            if sep_box.y0 <= y0 + (line+1)*11.8 <= sep_box.y1:
-                line_nr = nr_of_lines_to_expect - line
+        for index in range(nr_of_lines_to_expect):
+            line_nr = nr_of_lines_to_expect - index
+            #print(line_nr, sep_box.y0, round(y0 + (index+0.4)*11.8), sep_box.y1)
+            if sep_box.y0 <= round(y0 + (index+0.4)*11.8) <= sep_box.y1:
                 try:
                     oddies[line_nr].append(sep_box)
                 except KeyError:
@@ -416,19 +429,28 @@ def _find_oddies(sep_boxes, box_coords):
 
 
 def _mk_dict_of_gaps_in_lines(oddies, box_coords):
+    '''
+    This function takes the fragmented text pieces that were found in "oddies"
+    and calculates the gap that exists in front of the lost text fragment (or
+    after if there is more than one "oddy").
+
+    '''
     s = [(k, oddies[k]) for k in sorted(oddies, key=oddies.get)]
+    #print('s', s)
     gaps = dict()
     for k, v in s:
         gaps[k] = dict()
-        lost_boxes = [b for b in sorted(v, key=attrgetter('x0'))]
+        lost_boxes = [box for box in sorted(v, key=attrgetter('x0'))]
+        #print('lost_boxes', lost_boxes)
         for i, lost_box in enumerate(lost_boxes):
             lost_text = lost_box.text.strip()
-            #print(lost_text)
+            #print('lost_text', i, lost_text)
             if i == 0:
                 gap = lost_box.x0 - box_coords[0]
+                #print('gap, x0, box_coords', gap, lost_box.x0, box_coords)
                 gaps[k][gap] = dict()
                 gaps[k][gap]['oddy'] = lost_text
-            elif i == len(lost_boxes)-1:
+            elif i > 0 and i == len(lost_boxes)-1:
                 gap = lost_box.x0 - lost_boxes[i-1].x1
                 gaps[k][gap] = dict()
                 gaps[k][gap]['oddy'] = lost_text
@@ -443,13 +465,14 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
         # must have two characters (like "zu", "an", "da") plus a space before and
         # after, which means 4*4.9 = 19.6 --> must be 18 at least
         gaps_keys = [kee for kee in gaps[k].keys()]
-        #print(gaps_keys)
         for i, gap in enumerate(gaps_keys):
             if gap <= 17:
                 kee = gaps_keys[i-1]
                 gaps[k][kee]['oddy'] += ' ' + gaps[k][gap]['oddy']
                 del gaps[k][gap]
+                del gaps[k]
 
+    #print('gaps in mk_dict_of_gaps_in_lines\n', gaps)
     return gaps
 
 
@@ -465,84 +488,49 @@ def _is_inside_of_box(box_coords_big, box_coords_small):
 
 
 def _fill_gaps(gaps, box, new_text):
+    '''
+    After finding the gaps that the lost text fragments create within the line they
+    occupy this function looks for words of the "big box" (which was called out as
+    having a line or more missing) that could fit into those gaps.
+    This assumes that the words of the big box are not necessarily in the right
+    order and that the coordinates of the fragment is right! I have seen that in
+    wp14, Horst Becker, 11167. Not sure if it cannot also be the other way round ...
+
+    Returned is a dict that for each line offers one or more words to fill the gap
+    before the "oddy" and the oddy itself.
+    '''
+    quotes = ['\u201C', '\u201D', '\u201E', '\u201F', '\u2033', '\u2036', '\u0022']
+    # puncts are sentence FINISHERS! It must be possible to have a new paragraph next.
+    puncts = ['.', '!', '?']
     box_text = box.text.split('\n')
     box_text = list(filter(None, box_text))
 
     for i, line in enumerate(box_text):
         line = line.strip()
+        print('i+1, line:', i+1, line)
         if not line:
             continue
         elif len(line) >= 40:
             new_text.append(line)
-        elif line.endswith('.'):
+        elif line[-1] in puncts:
             new_text.append(line)
+        elif line[-1] in quotes:
+            if line[-2] in puncts:
+                new_text.append(line)
         else:
+            # counting of line_nr starts with 1
+            #print('filling gaps, line, line_nr:', line, i+1)
             fragm_extension = round(len(line)*4.9)
             for k, v in gaps.items():
+                #print('k, v, fragm_extension', k, v, fragm_extension)
                 for kk, vv in v.items():
+                    #print('kk, vv', kk, vv)
                     leftover = kk - fragm_extension
+                    #print('leftover, line', leftover, line)
                     vv[leftover] = line
 
+    print('gaps in _fill_gaps', gaps)
     return gaps, new_text
-
-
-# I will take this out:
-def _is_part_of_next_box(box, next_box):
-    '''
-    Check if box could be part of next_box but got seperated.
-    Vertical:   a) next_y1 > y1 > y0 > next_y0
-                b) y1 > next_y1 > next_y0 > y0
-    Horizontal: a) next_x1 > x1 > x0 > next_x0
-                b) x1 > next_x1 > next_x0 > x0
-    This function also considers cases where boxes get slightly over the edges
-    of each other - not sure if that makes sense especially since I'm not defining
-    the borders and how much of a blur is allowed.
-    '''
-    x0 = box.x0
-    x1 = box.x1
-    y0 = box.y0
-    y1 = box.y1
-    next_x0 = next_box.x0
-    next_x1 = next_box.x1
-    next_y0 = next_box.y0
-    next_y1 = next_box.y1
-    # a)
-    if next_y0 <= y0 and next_y1 >= y1:
-        if next_x1 >= x1 or x0 >= next_x0:
-            return True
-    elif next_y0 >= y0 and next_y1 <= y1:
-        if next_x1 >= x1 or x0 >= next_x0:
-            return True
-    elif next_y0 <= y0 and next_y1 >= y1:
-        if next_x1 <= x1 or x0 <= next_x0:
-            return True
-    # b)
-    elif next_y0 >= y0 and next_y1 <= y1:
-        if next_x1 <= x1 or x0 <= next_x0:
-            return True
-    return False
-
-
-def _alert_and_decide(box, next_box, text):
-
-    _sound_alarm()
-    print('*'*70)
-    print('Here is some text that got lost during conversion from PDF to text and will be added to text - better check it out!')
-    print('lost text:\n', box)
-    print('should fit somewhere here:\n', next_box)
-    print('*'*70)
-    print()
-    check = input('Is that so? Is that a piece of text that got lost? y/.')
-    if check == 'y':
-        return True
-    return False
-
-
-def _sound_alarm():
-    # found here: https://stackoverflow.com/a/16573339/6597765
-    #freq = 440
-    #os.system(f'play --no-show-progress --null --channels 1 synth {duration} sine {freq}')
-    print('\a')
 
 
 def _connect_sentences(sentences):
@@ -781,9 +769,9 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
                         if _is_president(box_text, start, end):
                             token_speaks = False
                             sent = box_list[-1].text
-                            print(box_list, sent)
                             applause = True
                             sent = _prepare_text(sent, start, end, applause)
+                            #print(box_list, sent)
                             if sent:
                                 if  _contains_final_words(sent):
                                     _break = True
@@ -883,7 +871,11 @@ def _text_without_header_items(box_text, start, end):
 
     #print('_text_without_header_items, before:', box_text)
     if box_text:
-        sents = box_text.split('\n')
+        try:
+            sents = box_text.split('\n')
+        except AttributeError:
+            sents = box_text
+            print('sents---------------->', sents)
         sents = list(filter(None, sents))
         sents = [e for e in sents if e != ' ']
         if sents == []:
@@ -1201,13 +1193,14 @@ def _prepare_text(box_text, start, end, applause=False):
         m = re.search(remark_pattern, clean_box_text)
         if m:
             pattern = m[0]
-            print('pattern', pattern)
+            #print('pattern', pattern)
             if pattern in parties:
                 pass
             else:
                 clean_box_text = clean_box_text.replace(pattern, '')
     if applause:
-        print('clean_box_text after\n', clean_box_text)
+    #    print('clean_box_text after\n', clean_box_text)
+        pass
     words = clean_box_text.split(' ')
     words = list(filter(None, words))
     words = [w for w in words if w != '\n']
@@ -1456,8 +1449,6 @@ def _get_rid_of_line_breaks(sents):
 def _find_words_sep_by_hyphens(sents, mdl_names):
     skip = False
     sentences = list()
-    new_hyphened_words = list()
-    new_german_words = list()
 
     for i, sentence in enumerate(sents):
         if skip:
@@ -1488,6 +1479,50 @@ def _find_words_sep_by_hyphens(sents, mdl_names):
         else:
             new_sentence = sentence
 
+        sentences.append(new_sentence)
+
+    return sentences
+
+
+def _find_words_sep_by_hyphens_within_sentence(sents, mdl_names):
+    sentences = list()
+    take_punctuation_mark = False
+
+    for i, sentence in enumerate(sents):
+        words = sentence.split(' ')
+        words = list(filter(None, words))
+        #print('words, checking for hyphens', words)
+        new_words = list()      # words to make a correct sentence
+        skip = False
+        for j, word in enumerate(words):
+            if skip:
+                skip = False
+                continue
+            elif word[-1] == '-':
+                try:
+                    next_word = words[j+1]
+                except IndexError:
+                    print('last word: ', word)
+                    raise Exception('Sentence ends with hyphen but there is no second part to that word!')
+                without_hyphen = word[:-1] + next_word
+                if without_hyphen[-1].isalpha():
+                    new_word = without_hyphen
+                else:
+                    new_word = without_hyphen[:-1]
+                    take_punctuation_mark = True
+                new_word = _find_correct_spelling(new_word, mdl_names, word,\
+                        next_word, name='_find_words_sep_by_hyphens')
+                print('new_word (aka without_hyphen)', new_word)
+                if take_punctuation_mark:
+                    take_punctuation_mark = False
+                    new_word = without_hyphen
+                new_words += [new_word]
+                skip = True
+                print('new_words', new_words)
+            else:
+                new_words += [word]
+        new_sentence = ' '.join(w for w in new_words)
+        #print('final sentence after getting rid of hyphens\n', new_sentence)
         sentences.append(new_sentence)
 
     return sentences
@@ -1553,7 +1588,7 @@ def _find_final_phrase(sents):
 
 
 def _contains_final_words(sent):
-    print('sent in _contains_final_words\n', sent)
+    #print('sent in _contains_final_words\n', sent)
     try:
         words = sent.split(' ')
     except AttributeError:
@@ -1583,8 +1618,8 @@ def _ends_with_applause(sent):
         words = sent
 
     if '(Beifall' in words:
-        print('sent in _ends_with_applause\n', sent)
-        print('*'*70)
+        #print('sent in _ends_with_applause\n', sent)
+        #print('*'*70)
         return True
     return False
 
