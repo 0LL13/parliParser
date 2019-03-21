@@ -206,10 +206,10 @@ def _mk_plain_text(boxes, mdl, mdl_names, start, end):
     sentences =  _find_words_sep_by_hyphens_within_sentence(sentences, mdl_names)
     sentences = _find_last_remarks(sentences)
     sentences = _find_final_phrase(sentences)
-    print('### sentences ###')
-    for i, sent in enumerate(sents_w_quotes):
-        print(i, sent)
-    sys.exit()
+    #print('~~~ sentences after find_final_phrase ~~~')
+    #for i, sent in enumerate(sentences):
+    #    print(i, sent)
+    sentences = _consider_quotes(sentences)
 
     return sentences
 
@@ -2088,6 +2088,61 @@ def _get_rid_of_greeting(sentences):
             final_speech.append(sentence)
 
     return final_speech
+
+
+def _consider_quotes(sentences):
+    sents_w_quotes = list()
+    quotation = list()
+    quoting = False
+    end_of_quote = False
+    for nr_of_sent, sent in enumerate(sentences):
+        print(nr_of_sent, sent)
+        sent_range = len(sent)
+        sent_after_quote = ''
+        sent_before_quote = ''
+        for index in range(sent_range):
+            c = sent[index]
+            if not quoting and c == '\u201E':
+                # "After the quote is before the quote." (Sepp Herberger)
+                if sent_after_quote != '':
+                    sents_w_quotes.append(sent_after_quote.lstrip())
+                    sent_after_quote = ''
+                elif index > 0:
+                    sent_before_quote = sent[:index]
+                    sents_w_quotes.append(sent_before_quote.lstrip())
+                    sent_before_quote = ''
+                quote = c
+                quoting = True
+                end_of_quote = False
+            elif quoting and c == '\u201C':
+                quote += c + ' '
+                quotation.append(quote.lstrip())
+                sents_w_quotes += quotation
+                quotation = list()
+                quoting = False
+                end_of_quote = True
+                quote = ''
+            elif quoting and c != '\u201C':
+                quote += c
+            elif end_of_quote:
+                sent_after_quote += c
+        try:
+            quote += ' '
+            if sent_after_quote != '':
+                sent_after_quote += ' '
+                sents_w_quotes.append(sent_after_quote.lstrip())
+                sent_after_quote = ''
+        except UnboundLocalError:
+            pass
+        if end_of_quote:
+            end_of_quote = False
+            if sent_after_quote != '':
+                sents_w_quotes.append(sent_after_quote.lstrip())
+                sent_after_quote = ''
+        elif not quoting:
+            sents_w_quotes.append(sent.lstrip())
+
+    return sents_w_quotes
 
 
 def _open_dilled_wp(legislature):
