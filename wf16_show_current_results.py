@@ -140,13 +140,42 @@ class Menu:
 def _open_dilled_wp():
     '''
     '''
-    wahlperiode = ask_for_wahlperiode()
-    dir_loc = './parli_data/wf15_dilled_wps/'
-
-    file_loc = dir_loc + 'WP_{}.dill'.format(wahlperiode)
-
-    with open(file_loc, 'rb') as fin:
-        wp = dill.load(fin)
+    legislature = ask_for_wahlperiode()
+    try:
+        dir_ = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+        print(os.listdir(dir_))
+        latest_file = dir_ + sorted(os.listdir(dir_))[-1]
+        print(f'opening: {latest_file}')
+        with open(latest_file, 'rb') as fin:
+            wp = dill.load(fin)
+    except (FileNotFoundError, IsADirectoryError):
+        try:
+            print(f'did not find {latest_file}')
+            dir_local = f'./parli_data/wf15_dilled_wps/'
+            file_local = dir_local + 'WP_{}.dill'.format(legislature)
+            print(f'opening file: {file_local}')
+            with open(file_local, 'rb') as fin:
+                wp = dill.load(fin)
+        except FileNotFoundError:
+            dir_loc = f'./parli_data/wf13_contributions/'
+            file_loc = dir_loc + 'WP_{}.dill'.format(legislature)
+            print(f'opening file: {file_loc}')
+            with open(file_loc, 'rb') as fin:
+                wp = dill.load(fin)
+    except IndexError:
+        try:
+            print(f'did not find a file in {dir_}')
+            dir_local = f'./parli_data/wf15_dilled_wps/'
+            file_local = dir_local + 'WP_{}.dill'.format(legislature)
+            print(f'opening file: {file_local}')
+            with open(file_local, 'rb') as fin:
+                wp = dill.load(fin)
+        except FileNotFoundError:
+            dir_loc = f'./parli_data/wf13_contributions/'
+            file_loc = dir_loc + 'WP_{}.dill'.format(legislature)
+            print(f'opening file: {file_loc}')
+            with open(file_loc, 'rb') as fin:
+                wp = dill.load(fin)
 
     return wp
 

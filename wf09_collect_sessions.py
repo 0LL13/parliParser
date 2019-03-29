@@ -31,7 +31,8 @@ def wf09_collect_sessions(wahlperiode=False):
     speakers: all the speakers who contributed to a particular session and their
     party affiliation
 
-    Saves the newly extended wp of the chosen legislature using dill.
+    If called with attribute 's':
+        Saves the newly extended wp of the chosen legislature using dill.
     '''
 
     try:
@@ -71,7 +72,6 @@ def wf09_collect_sessions(wahlperiode=False):
                     end = end.strip()
                     session_id = Session_id(protocol_nr, start, end)
                     wp.sessions[session_id] = session
-                    #print(session)
 
     if save:
         dir_loc = './parli_data/wf09_dilled_wps/'
@@ -122,6 +122,11 @@ def _extract_infos_from_bsObj(key, bsObj, wp):
                     next_cell = cell.find_next('a', \
                             attrs={'title':'Interner Link zum Dokument'})
                     url = next_cell['href']
+                    if '|4172|7190' in url:
+                        #print(cell)
+                        #print(next_cell)
+                        url = '/portal/WWW/dokumentenarchiv/Dokument?Id=MMP14%2F38|4172|4268'
+                        #sys.exit()
                     protocol_nr = next_cell.text.strip()
                     date = next_cell.next_sibling.strip().split(' ')[0]
                     fields = next_cell.next_sibling.strip().split(' ')[-2:]
@@ -131,6 +136,8 @@ def _extract_infos_from_bsObj(key, bsObj, wp):
                         #print(rows)
                         #print()
                         continue
+                    elif start == '4172' and end == '7190':
+                        end = '4268'
                 except AttributeError:
                     pass
                 try:

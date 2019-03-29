@@ -185,7 +185,7 @@ def _mk_contri_entry(speaker, name, speakers, contri_end, end, c):
     This will decide which pages to look at in a PDF document.
     Tricky: at 14/114 there will be MdL Wolf speaking before MdL Altenkamp at
     page 13293. Altenkamp will also speak at 13293 until page 13294, when MdL
-    Wolf will speak one more time. How can I prevent
+    Wolf will speak one more time. How can I prevent these being mixed?
     '''
     if speaker.name == name:
         start  = speaker.page

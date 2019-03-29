@@ -141,7 +141,7 @@ def _open_dilled_wp():
     '''
     '''
     wahlperiode = ask_for_wahlperiode()
-    dir_loc = './parli_data/wf15_dilled_wps/'
+    dir_loc = './parli_data/wf13_contributions/'
 
     file_loc = dir_loc + 'WP_{}.dill'.format(wahlperiode)
 
