@@ -775,7 +775,6 @@ norw.
 norweg.
 Nov.
 Nr.
-Nr.
 ntw.
 Ntw.
 Nutzfl.
@@ -1114,3 +1113,4 @@ zzt.
 
 v.Chr.
 i.Allg.
+Art.

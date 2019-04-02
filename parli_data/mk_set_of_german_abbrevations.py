@@ -5,7 +5,7 @@
 # Better is this:
 # https://raw.githubusercontent.com/tsproisl/SoMaJo/master/somajo/abbreviations_de.txt
 
-# I added: p.Erkl. Erkl. Zw.Fr. Zus.Fr. Frfr.
+# I added: p.Erkl. Erkl. Zw.Fr. Zus.Fr. Frfr. Art. v.Chr.
 # Also: So.
 
 
@@ -32,6 +32,32 @@ def mk_list_of_abbrevs():
     list_of_abbrevs = list(filter(None, list_of_abbrevs))
 
     return list_of_abbrevs
+
+
+def mk_list_of_abbrevs_followed_by_a_nr():
+    file_loc = './parli_data/'
+    if not os.path.isdir(file_loc):
+        file_loc = './'
+
+    list_of_abbrevs = list()
+
+    file_name = 'german_abbr_nr.txt'
+    file_ = file_loc + file_name
+
+    with open(file_, 'r') as fin:
+       abbrevs  = fin.read()
+
+    for abbrv in abbrevs.split('\n'):
+        abbrv = abbrv.strip()
+        list_of_abbrevs.append(abbrv)
+
+    list_of_abbrevs = list(filter(None, list_of_abbrevs))
+
+    return list_of_abbrevs
+
+
+
+
 
 
 if __name__ == '__main__':

@@ -13,6 +13,8 @@ from nltk.tokenize import sent_tokenize
 from operator import attrgetter
 from pdf2textbox.pdf2textbox import _pdf_to_text_slice, _get_pdf_file
 from parli_data.mk_set_of_german_abbrevations import mk_list_of_abbrevs
+from parli_data.mk_set_of_german_abbrevations import\
+                                        mk_list_of_abbrevs_followed_by_a_nr
 from parli_data.mk_set_of_hyphened_words import mk_list_of_hyphened_words
 from parli_data.mk_set_of_hyphened_combis import mk_list_of_hyphened_combis
 from parli_data.mk_set_of_german_words import mk_list_of_german_words
@@ -107,6 +109,9 @@ def wf15_convert_PDF2text_and_save():
                     #if '14651' in start_end: sys.exit()     # Asch
                     #if '6799' in start_end: sys.exit()     # Asch
                     #if '4315' in start_end: sys.exit()     # Asch
+                    #if '1507' in start_end: sys.exit()     # Asch
+                    #if '14295' in start_end: sys.exit()     # Becker
+                    if '8019' in start_end: sys.exit()     # Becker
 
                     token = _save_the_contributions(legislature, key, protocol_nr,\
                             start_end, sentences)
@@ -217,6 +222,7 @@ def _mk_plain_text(boxes, mdl, mdl_names, start, end):
     complete_text = _connect_boxes(boxes, german_words, mdl_names)
     sentences = nltk.sent_tokenize(complete_text, language='german')
     sentences = _connect_sentences(sentences)
+    _print_current_results(sentences)
     sentences =  _get_rid_of_line_breaks_wth_hyphens(sentences, mdl_names)
     sentences = _get_rid_of_line_breaks(sentences)
     sentences = _find_words_sep_by_hyphens(sentences, mdl_names)
@@ -231,7 +237,7 @@ def _print_current_results(results):
     print()
     for i, item in enumerate(results):
         print(i, item)
-    sys.exit()
+    #sys.exit()
 
 
 def _mk_list_of_boxes(boxes, start, end):
@@ -263,20 +269,20 @@ def _mk_list_of_boxes(boxes, start, end):
         #print(i, box)
         false_alarm = True
         if nr_of_sep_boxes_after > 0:
-            print('nr_of_sep_boxes_after > 0, snipping this box:')
-            print(i, box)
+            #print('nr_of_sep_boxes_after > 0, snipping this box:')
+            #print(i, box)
             nr_of_sep_boxes_after -= 1
             continue
         elif _could_be_box_w_missing_text(box, start, end):
-            print('Found box with missing text:')
-            print(box)
+            #print('Found box with missing text:')
+            #print(box)
             box_coords = _get_coords(box)
             sep_boxes_before = _find_sep_boxes(i, boxes, box_coords, before=True)
             sep_boxes_after = _find_sep_boxes(i, boxes, box_coords, after=True)
             if len(sep_boxes_before) > 0:
                 false_alarm = False
-                print('found sep_boxes before:')
-                print(sep_boxes_before)
+                #print('found sep_boxes before:')
+                #print(sep_boxes_before)
                 #print()
                 #print('current box_list:')
                 #for box_nr, box_text in enumerate(box_list):
@@ -295,8 +301,8 @@ def _mk_list_of_boxes(boxes, start, end):
                 #    print(box_nr, box_text)
             if len(sep_boxes_after) > 0:
                 false_alarm = False
-                print('found sep_boxes after')
-                print(sep_boxes_after)
+                #print('found sep_boxes after')
+                #print(sep_boxes_after)
                 new_text, nr_of_sep_boxes_after =\
                         _mk_text_great_again(sep_boxes_after, box_coords, box,\
                         after=True, new_text=new_text)
@@ -343,6 +349,7 @@ def _mk_text_great_again(sep_boxes,
     #print(f'before: {before}, after: {after}')
     nr_of_gaps = 0
     new_text = new_text
+    corrected_text = new_text
     oddies = _find_oddies(sep_boxes, box_coords, before, after)
     gaps = _mk_dict_of_gaps_in_lines(oddies, box_coords)
     for k, v in gaps.items():
@@ -352,23 +359,26 @@ def _mk_text_great_again(sep_boxes,
                     nr_of_gaps += 1
     for _, gap_dict in gaps.items():
         gaps, new_text = _fill_gaps(gaps, box, new_text)
-        corrected_line = _correct_line(gaps, new_text)
+        corrected_text = _correct_line(gaps, new_text)
 
     #for index, line in enumerate(new_text):
     #    print(index, line)
     #print(new_text)
     #sys.exit()
 
-    return new_text, nr_of_gaps
+    #print('gaps', gaps)
+    return corrected_text, nr_of_gaps
 
 
 def _correct_line(gaps, new_text):
     #print()
     #print('_correct_line starting here')
     #print('gaps', gaps)
+    #print('new_text', new_text)
     d = gaps
     best_fits = list()
     correct_line = list()
+    corrected_line = ''
     for k, v in d.items():
         #print('k, v in gaps.items()')
         #print(k, v)
@@ -376,26 +386,39 @@ def _correct_line(gaps, new_text):
             #print('vv.keys()', vv.keys())
             try:
                 best_fits = sorted([bf for bf in vv.keys() if bf != 'oddy' and bf > 0])
+                #print('best_fits', best_fits)
             except (AttributeError, TypeError):
                 pass
-            for bf in best_fits:
-                #print('bf, vv[bf]', bf, vv[bf])
-                if vv[bf] in correct_line:
-                    continue
-                else:
-                    correct_line.append(vv[bf])
-                    if vv['oddy']:
-                        correct_line.append(vv['oddy'])
-                    break
-            correct_line = ' '.join(part for part in correct_line)
-            for i, line in enumerate(new_text):
-                if line == vv[bf]:
-                    new_text[i] = correct_line
+            if best_fits == []:
+                continue
+            else:
+                for bf in best_fits:
+                    #print('bf, vv[bf]', bf, vv[bf])
+                    if vv[bf] in correct_line:
+                        continue
+                    elif vv[bf][-1] == '-':
+                        try:
+                            if vv['oddy'][0].isupper():
+                                correct_line.append(vv['oddy'])
+                                correct_line.append(vv[bf])
+                        except IndexError:
+                            correct_line.append(vv[bf])
+                    else:
+                        correct_line.append(vv[bf])
+                        if vv['oddy']:
+                            correct_line.append(vv['oddy'])
+                        break
+                corrected_line = ' '.join(part for part in correct_line)
+                for i, line in enumerate(new_text):
+                    if line == vv[bf]:
+                        new_text[i] = corrected_line
+    #print()
+    #print('new_text with corrected line:')
     #for index, line in enumerate(new_text):
     #    print(index, line)
     #sys.exit()
 
-    return correct_line
+    return new_text
 
 
 def _could_be_box_w_missing_text(box, start, end):
@@ -415,20 +438,21 @@ def _could_be_box_w_missing_text(box, start, end):
     '''
     y_extension = box.y1 - box.y0
     nr_of_lines_to_expect = round(y_extension/11.8)
-    print('nr_of_lines_to_expect', nr_of_lines_to_expect, y_extension)
+    #print('nr_of_lines_to_expect', nr_of_lines_to_expect, y_extension)
 
     text = box.text
     text_split_in_lines = text.split('\n')
     text_split_in_lines = list(filter(None, text_split_in_lines))
     #print(text_split_in_lines)
     nr_of_lines_in_fact = len(text_split_in_lines)
-    print('nr_of_lines_in_fact', nr_of_lines_in_fact)
+    #print('nr_of_lines_in_fact', nr_of_lines_in_fact)
 
     if nr_of_lines_in_fact != nr_of_lines_to_expect:
-        print('Found box where text could be missing')
-        print('text.split("\\n"):')
-        for i, line in enumerate(text_split_in_lines):
-            print(i, line, len(line))
+        #print('Found box where text could be missing:')
+        #print(box)
+        #print('text.split("\\n"):')
+        #for i, line in enumerate(text_split_in_lines):
+        #    print(i, line, len(line))
         return True
     return False
 
@@ -468,18 +492,26 @@ def _find_sep_boxes(i, boxes, box_coords, before=False, after=False):
     elif before:
         if i == 0:
             return sep_boxes        # because there are no boxes before boxes[0]
-        boxes_before = reversed(boxes[:i])
+        boxes_before = list(reversed(boxes[:i]))
         boxes_to_check = boxes_before
 
     token = True
     #print('boxes_to_check:')
     #print(boxes_to_check)
+    counter = 0
+    max = len(boxes_to_check)
 
     while token:
         for b_o_x in boxes_to_check:
+            counter += 1
             b_o_x_coords = _get_coords (b_o_x)
+            #print('box_coords (big)', box_coords)
+            #print('b_o_x_coords (small)', b_o_x_coords)
             if _is_inside_of_box(box_coords, b_o_x_coords):
                 sep_boxes.append(b_o_x)
+                if counter >= max:
+                    token = False
+                    break
             else:
                 token = False
                 break
@@ -531,21 +563,22 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
         gap:{'oddy': text of lost box}
     With gap being the space between the box frame and the start of the lost box.
     '''
-    #print()
-    #print('_mk_dict_of_gaps_in_lines starting here')
+    print()
+    print('_mk_dict_of_gaps_in_lines starting here')
     s = [(k, oddies[k]) for k in sorted(oddies, key=oddies.get)]
-    #print('s', s)
+    print('s', s)
     gaps = dict()
     for k, v in s:
         gaps[k] = dict()
         lost_boxes = [box for box in sorted(v, key=attrgetter('x0'))]
-        #print('lost_boxes', lost_boxes)
+        print('lost_boxes', lost_boxes)
         for i, lost_box in enumerate(lost_boxes):
             lost_text = lost_box.text.strip()
-            #print('lost_text', i, lost_text)
+            print('lost_text', i, lost_text)
             if i == 0:
                 gap = lost_box.x0 - box_coords[0]
-                #print('gap, x0, box_coords', gap, lost_box.x0, box_coords)
+                print('i == 0')
+                print('gap, x0, box_coords', gap, lost_box.x0, box_coords)
                 gaps[k][gap] = dict()
                 gaps[k][gap]['oddy'] = lost_text
             elif i > 0 and i == len(lost_boxes)-1:
@@ -563,15 +596,32 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
         # must have two characters (like "zu", "an", "da") plus a space before and
         # after, which means 4*4.9 = 19.6 --> must be 18 at least
         gaps_keys = [kee for kee in gaps[k].keys()]
+        #print('gaps_keys', gaps_keys)
+        #print('k, gaps[k]', k, gaps[k])
+        kee = -1
         for i, gap in enumerate(gaps_keys):
             if gap <= 17:
-                kee = gaps_keys[i-1]
-                gaps[k][kee]['oddy'] += ' ' + gaps[k][gap]['oddy']
+                if kee < 0:
+                    kee = gaps_keys[i-1]
+                try:
+                    #print('k, gap, gaps[k]', k, gap, gaps[k])
+                    #print('gaps[k][kee]', gaps[k][kee])
+                    #print('gaps[k][gap]', gaps[k][gap])
+                    #print('gaps[k][kee]["oddy"]', gaps[k][kee]["oddy"])
+                    #print('gaps[k][gap]["oddy"]', gaps[k][gap]["oddy"])
+                    gaps[k][kee]['oddy'] += ' ' + gaps[k][gap]['oddy']
+                    #print('gaps[k][kee]["oddy"]', gaps[k][kee]["oddy"])
+                except KeyError:
+                    pass
+
+                del gaps[k][gap]['oddy']
                 del gaps[k][gap]
-                del gaps[k]
+            else:
+                kee = -1
 
     #print('gaps in mk_dict_of_gaps_in_lines')
     #print(gaps)
+    #sys.exit()
     return gaps
 
 
@@ -605,7 +655,7 @@ def _fill_gaps(gaps, box, new_text):
     # puncts are sentence FINISHERS! It must be possible to have a new paragraph next.
     puncts = ['.', '!', '?']
     #print('new_text:', [new_text])
-    if new_text == [] or new_text.strip() == None or new_text == '':
+    if new_text == [] or new_text == None or new_text == '':
         #print('new_text == []')
         box_text = box.text.split('\n')
         box_text = list(filter(None, box_text))
@@ -672,9 +722,10 @@ def _connect_sentences(sentences):
     find out if an abbreviation is also the end of the sentence.
     '''
     abbrevs = mk_list_of_abbrevs()
-    exceptions = ['sen.', 'So.']
-    for exc in exceptions:
-        abbrevs.remove(exc)
+    abbrevs_followed_by_a_nr = mk_list_of_abbrevs_followed_by_a_nr()
+    exceptions = ['sen.', 'So.', 'gel.']
+    #for exc in exceptions:
+    #    abbrevs.remove(exc)
     new_sentences = list()
     skip = False
     for i, sentence in enumerate(sentences):
@@ -697,7 +748,21 @@ def _connect_sentences(sentences):
                 print('the culprit:', last_word)
                 raise Exception('Why is there an abbrevation but nothing follows?')
 
-            if next_first_word in abbrevs:
+            if words[-2].strip().endswith('-'):
+                new_sentence += sentence
+                new_sentence = re.sub(' +', ' ', new_sentence)
+                new_sentences.append(new_sentence)
+            elif last_word in abbrevs_followed_by_a_nr:
+                if next_first_word.isdigit():
+                    new_sentence += sentence + ' ' + next_sent
+                    new_sentence = re.sub(' +', ' ', new_sentence)
+                    new_sentences.append(new_sentence)
+                    skip = True
+                else:
+                    new_sentence += sentence
+                    new_sentence = re.sub(' +', ' ', new_sentence)
+                    new_sentences.append(new_sentence)
+            elif next_first_word in abbrevs:
                 # sentence needs to continue without empty space
                 new_sentence += sentence + next_sent
                 new_sentence = re.sub(' +', ' ', new_sentence)
@@ -1148,6 +1213,8 @@ def _is_speaker(box_text, mdl, start, end):
         while counter < l_fn:
             if first_word in first_names:
                 words = words[1:]
+                if words == []:
+                    return False
                 words = _cut_off_peertitle(words)
                 first_element = words[0]
                 first_word = re.sub(clutter, '', first_element)
@@ -1276,6 +1343,8 @@ def _is_other_MdL(box_text, mdl, vN_list, nN_list, start, end):
         pass
 
     words = box_text
+    if words == []:
+        return false
     words = _cut_off_akad_titel(words)
     first_element = words[0]
     first_word = re.sub(clutter, '', first_element)
@@ -1357,7 +1426,11 @@ def _prepare_text(box_text, start, end, applause=False):
 
 def _cut_off_akad_titel(words):
     acad_titles = ['Dr.', 'Prof.', 'Dr.Dr.', 'Prof.Dr.']
-    first_word = words[0]
+    try:
+        first_word = words[0]
+    except IndexError:
+        print(words)
+        raise
     while first_word in acad_titles:
         words = words[1:]
         first_word = words[0]
@@ -1367,7 +1440,11 @@ def _cut_off_akad_titel(words):
 def _cut_off_peertitle(words):
     peer_titles = ['von', 'van', 'zur', 'auf', 'der', 'de', 'Freifrau', 'Freiherr',\
             'Gräfin', 'Graf', 'vom']
-    first_word = words[0]
+    try:
+        first_word = words[0]
+    except IndexError:
+        print(words)
+        raise
     while first_word in peer_titles:
         if len(words) > 1:
             words = words[1:]
@@ -1527,8 +1604,8 @@ def _is_question(box_text, start, end):
 
 
 def _get_rid_of_line_breaks_wth_hyphens(sents, mdl_names):
-    #print('_get_rid_of_line_breaks_with_hyphens')
-    #print('new_sentence in _get_rid_of_line_breaks_with_hyphens:')
+    print('_get_rid_of_line_breaks_with_hyphens')
+    print('new_sentence in _get_rid_of_line_breaks_with_hyphens:')
     new_sentences = list()
     for j, sent in enumerate(sents):
         #print(j, sent)
@@ -1547,7 +1624,7 @@ def _get_rid_of_line_breaks_wth_hyphens(sents, mdl_names):
                 last_word = words[-1].strip()
             else:
                 continue
-            #print(i, part)
+            print(i, part)
 
             if skip:
                 skip = False
@@ -1564,15 +1641,25 @@ def _get_rid_of_line_breaks_wth_hyphens(sents, mdl_names):
                 new_word = _find_correct_spelling(new_word, mdl_names,\
                     last_word, first_word, name='get_rid_of_line_breaks_with_hyphens')
                 if not last_char.isalnum():
-                    if not new_word[-1].isalnum():
+                    if new_word == None:
+                        part = part.strip()
+                        new_sentence += part
+                        #print('_get_rid_of_line_breaks_with_hyphens')
+                        #print(new_sentence)
+                        continue
+                    elif not new_word[-1].isalnum():
                         pass
-                    else:
+                    else:           # taking care of cases like ...!" or ...,"
                         if not sec_last_char.isalnum():
                             new_word += sec_last_char
                         new_word += last_char
+                        combined_parts = words[:-1] + [new_word] + next_words[1:]
                         #print('+'*10)
                         #print('added last char in _get_rid_of_line_bre...', new_word)
-                combined_parts = words[:-1] + [new_word] + next_words[1:]
+                elif new_word == None:
+                    combined_parts = words[:-1] + next_words[1:]
+                else:
+                    combined_parts = words[:-1] + [new_word] + next_words[1:]
                 new_part = ' '.join(w for w in combined_parts)
                 new_sentence += new_part
                 skip = True
@@ -1582,9 +1669,9 @@ def _get_rid_of_line_breaks_wth_hyphens(sents, mdl_names):
 
         if new_sentence[-1] not in ['.', '!', '?', ':']:
             new_sentence += '.'
-        #print(new_sentence)
         new_sentences.append(new_sentence)
 
+    sys.exit()
     return new_sentences
 
 
@@ -1725,22 +1812,22 @@ def _contains_final_words(sent):
         words = sent
 
     if 'danke' in words and 'Ihnen' in words and 'Aufmerksamkeit.' in words:
-        print(words)
+        #print(words)
         return True
     elif 'Dank' in words and 'Aufmerksamkeit.' in words:
-        print(words)
+        #print(words)
         return True
     elif 'Vielen' in words and 'Dank.' in words:
-        print(words)
+        #print(words)
         return True
     elif 'danke' in words and 'Ihnen.' in words:
-        print(words)
+        #print(words)
         return True
     elif 'Schönen' in words and 'Dank.' in words:
-        print(words)
+        #print(words)
         return True
     elif 'Herzlichen' in words and 'Dank.' in words:
-        print(words)
+        #print(words)
         return True
     else:
         return False
@@ -1800,6 +1887,8 @@ def _find_correct_spelling(new_word, mdl_names, last_word, first_word, name):
     global german_words
     global german_stopwords
     global hyphened_words
+    #print()
+    #print('_find_correct_spelling starting here')
     #print('name of calling function:\t', name)
     # check if hyphen
     if last_word[-1] == '-':
@@ -1817,14 +1906,18 @@ def _find_correct_spelling(new_word, mdl_names, last_word, first_word, name):
         return new_word
     # now with hyphen
     else:
-        new_word = last_word + first_word       # last_word still contains hyphen!
-        new_word = re.sub(clutter, '', new_word)
+        new_word_w_clutter = last_word + first_word
+        new_word = re.sub(clutter, '', new_word_w_clutter)
         with_hyphen = re.sub(clutter, '', last_word + first_word)
         without_hyphen = re.sub(clutter, '', last_word[:-1] + first_word)
         with_space = last_word + ' ' + first_word
+        without_space = last_word[:-1] + first_word
         with_2_spaces = last_word[:-1] + ' - ' + first_word
+        with_space_n_hyphen = last_word[:-1] + ' -' + first_word
         if new_word in hyphened_words:
             return new_word
+        elif new_word_w_clutter in hyphened_words:
+            return new_word_w_clutter
         elif new_word in mdl_names:
             return new_word
         elif with_hyphen in hyphened_words:
@@ -1845,6 +1938,8 @@ def _find_correct_spelling(new_word, mdl_names, last_word, first_word, name):
             return with_space
         elif with_space in hyphened_combis:
             return with_space
+        elif with_space_n_hyphen in hyphened_combis:
+            return with_space_n_hyphen
         elif with_2_spaces in german_words:
             return with_2_spaces
         elif with_2_spaces in hyphened_words:
@@ -1854,19 +1949,36 @@ def _find_correct_spelling(new_word, mdl_names, last_word, first_word, name):
             #with_space = last_word + ' ' + first_word
             #with_2_spaces = last_word[:-1] + ' - ' + first_word
             print('_find_correct_spelling')
-            print(f'1: {with_hyphen}, 2: {without_hyphen}, 3: {with_space}, 4: {with_2_spaces}')
-            choose = input('1, 2, 3, 4 or . if correction: ')
+            print(f'1: {with_hyphen} --> will be saved in words with hyphen')
+            print(f'2: {without_hyphen} --> will be saved in words with hyphen')
+            print(f'3: {new_word_w_clutter} --> will be saved in words with hyphen')
+            print(f'4: {with_space} --> will be saved in hyphened combos')
+            print(f'5: {with_space_n_hyphen} --> will be saved in hyphened combos')
+            print(f'6: {without_hyphen} --> will be saved in standard dict')
+            print(f'7: {with_2_spaces}')
+            print(f'8: {without_space}')
+            choose = input('1, 2, 3, 4, 5, 6 or . if correction: ')
             if choose == '1':
-                _save_with_hyphen(with_hyphen)
+                _save_hyphened_expression(with_hyphen)
                 return with_hyphen
             elif choose == '2':
-                _save_without_hyphen(without_hyphen)
+                _save_hyphened_expression(without_hyphen)
                 return without_hyphen
             elif choose == '3':
-                _save_with_space(with_space)
-                return with_space
+                _save_hyphened_expression(new_word_w_clutter)
             elif choose == '4':
+                _save_hyphened_combo(with_space)
+                return with_space
+            elif choose == '5':
+                _save_hyphened_combo(with_space_n_hyphen)
+                return with_space_n_hyphen
+            elif choose == '6':
+                _save_standard_dict(without_hyphen)
                 return with_2_spaces
+            elif choose == '7':
+                return with_2_spaces
+            elif choose == '8':
+                return without_space
             else:
                 corrected_word = input('Corrected word: ')
                 print()
@@ -1883,25 +1995,25 @@ def _find_correct_spelling(new_word, mdl_names, last_word, first_word, name):
                     return corrected_word
 
 
-def _save_with_hyphen(new_word_with_hyphen):
+def _save_hyphened_expression(new_word_with_hyphen):
     with open('./parli_data/new_hyphened_words.txt', 'a',\
             encoding='utf-8') as fout:
         fout.write('\n')
         fout.write(new_word_with_hyphen)
 
 
-def _save_without_hyphen(word_without_hyphen):
+def _save_standard_dict(word):
     with open('./parli_data/new_german_words.txt', 'a',\
             encoding='utf-8') as fout:
         fout.write('\n')
-        fout.write(word_without_hyphen)
+        fout.write(word)
 
 
-def _save_with_space(combi_with_hyphen):
+def _save_hyphened_combo(combi):
     with open('./parli_data/new_hyphened_combis.txt', 'a',\
             encoding='utf-8') as fout:
         fout.write('\n')
-        fout.write(combi_with_hyphen)
+        fout.write(combi)
 
 
 def _get_rid_of_remarks_within_box(boxes):
@@ -1984,18 +2096,21 @@ def _connect_boxes(box_list_to_iterate, german_words, mdl_names):
             continue
         elif box_text[-1] == '-':
             last_word = words[-1].strip()[:-1]
-            first_word = next_words[0].strip()
-            last_char = first_word[-1]
-            new_word = last_word + first_word
-            new_word = re.sub(clutter, '', new_word)
-            new_word = _find_correct_spelling(new_word, mdl_names,\
-                    last_word, first_word, name='_connect_boxes')
-            if not last_char.isalnum():
-                new_word += last_char
-            combined_boxes = words[:-1] + [new_word] + next_words[1:]
-            combined_box_text = ' '.join(w for w in combined_boxes)
-            complete_text += ' ' + combined_box_text
-            skip = True
+            if not last_word:
+                complete_text += ' ' + box_text
+            else:
+                first_word = next_words[0].strip()
+                last_char = first_word[-1]
+                new_word = last_word + first_word
+                new_word = re.sub(clutter, '', new_word)
+                new_word = _find_correct_spelling(new_word, mdl_names,\
+                        last_word, first_word, name='_connect_boxes')
+                if not last_char.isalnum():
+                    new_word += last_char
+                combined_boxes = words[:-1] + [new_word] + next_words[1:]
+                combined_box_text = ' '.join(w for w in combined_boxes)
+                complete_text += ' ' + combined_box_text
+                skip = True
         else:
             complete_text += ' ' + box_text
 
