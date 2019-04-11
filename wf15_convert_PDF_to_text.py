@@ -46,8 +46,6 @@ def wf15_convert_PDF2text_and_save():
             save = True
         elif sys.argv[1] == 'v':
             verbose = True
-        elif sys.argv[1] == 'p':
-            preview = True
 
         if sys.argv[2] in ['14', '15', '16']:
             legislature = sys.argv[2]
@@ -75,6 +73,11 @@ def wf15_convert_PDF2text_and_save():
                     _show_actual_contribution(mdl, legislature)
         elif save or preview:
             print(mdl.key)
+            for k, v in mdl.speeches.collection.items():
+                for kk, vv in v.items():
+                    if kk == 'nr_of_speeches':
+                        total = vv
+            counter = 0
             for protocol_nr, start_end, sentences in _PDF_to_text(mdl, base, fn, ln):
                 if preview:
                     if protocol_nr:
@@ -125,9 +128,17 @@ def wf15_convert_PDF2text_and_save():
                     #if '10325' in start_end: sys.exit()     #Becker
                     #if '10316' in start_end: sys.exit()     #Becker
                     #if '87' in start_end: sys.exit()     # Becker
+                    #if '14986' in start_end: sys.exit()     #Beer
+                    #if '13641' in start_end: sys.exit()     #Beer
+                    #if '13675' in start_end: sys.exit()     #Beer
+                    #if '10441' in start_end: sys.exit()     #Beer
+                    #if '7034' in start_end: sys.exit()
+                    #if '5069' in start_end: sys.exit()
 
                     token = _save_the_contributions(legislature, key, protocol_nr,\
-                            start_end, sentences)
+                            start_end, sentences, counter, total)
+                else:
+                    counter += 1
 
             if token:
                 check = input('Continue? ./n')
@@ -148,6 +159,7 @@ def _show_actual_contribution(mdl, legislature):
             #if '17017' in start_end:
             #if '9671' in start_end:
             #if '3404' in start_end:
+            if '12518' in start_end:
                 print('protocol_nr, start_end:', protocol_nr, start_end)
                 print()
                 kind = _get_kind_of_contribution(contri)
@@ -251,6 +263,7 @@ def _mk_plain_text(boxes, mdl, mdl_names, start, end):
     sentences = _find_last_remarks(sentences)
     #_print_current_results(sentences)
     sentences = _connect_sentences(sentences)
+    sentences = _connect_dates(sentences)
     sentences = _consider_quotes(sentences)
 
     return sentences
@@ -263,7 +276,7 @@ def _print_current_results(results):
     sys.exit()
 
 
-def _mk_list_of_boxes(boxes, start, end):
+def _mk_list_of_boxes(boxes, start, end, name=None):
     '''
     Does two things: basically taking the box.text part of those boxes and appending
     them in a list.
@@ -280,8 +293,8 @@ def _mk_list_of_boxes(boxes, start, end):
 
     Returns a list with texts as found in boxes coming from pdf2textbox
     '''
-    #print()
-    #print('_mk_list_of_boxes starting here')
+    func_name = '_mk_list_of_boxes starting here'
+    #_self_intro(func_name, name)
     #_print_current_results(boxes)
     box_list = list()
     sep_boxes_before = list()
@@ -290,59 +303,53 @@ def _mk_list_of_boxes(boxes, start, end):
     nr_of_sep_boxes_before = 0       # tells how many boxes to take out of box_list
     nr_of_sep_boxes_after = 0        # tells how many boxes to skip later on
     for i, box in enumerate(boxes):
-        #print(i, box)
+        index = i
+        if nr_of_sep_boxes_after > 0:
+            #print('nr_of_sep_boxes_after > 0, snipping this box:')
+            nr_of_sep_boxes_after -= 1
+            continue
+        #print(index, box)
         #print('nr_of_sep_boxes_after:', nr_of_sep_boxes_after)
         false_alarm = True
         too_many_lines = _could_be_box_w_missing_text(box, start, end)
         lines_too_short = _could_be_lines_too_short(box)
-        #print('lines_too_short')
-        #print(box)
-        if nr_of_sep_boxes_after > 0:
-            #print('nr_of_sep_boxes_after > 0, snipping this box:')
-            #print(i, box)
-            nr_of_sep_boxes_after -= 1
-            continue
-        elif too_many_lines:
+        if too_many_lines or lines_too_short:
+            _show_box_that_could_miss_some_text(box, too_many_lines, lines_too_short)
+        if too_many_lines:
             box_list, false_alarm, nr_of_sep_boxes_after =\
                     _correct_boxlist(i, boxes, box_list, false_alarm, start, end)
-            #print('-a, nr_of_sep_boxes_after:', nr_of_sep_boxes_after)
             if false_alarm:
                 box_list = _add_to_box_list(box.text, start, end, box_list)
-        elif lines_too_short:
+                continue
+        if lines_too_short:
+            lines = box.text.split('\n')
+            for j, line in enumerate(lines):
+                print(j, line)
             try:
-                index = i+1
-                next_box = boxes[index]
+                box_before = boxes[index-1]
             except IndexError:
-                box_list = _add_to_box_list(box.text, start, end, box_list)
-                break
-            if _nr_of_lines_equals_one(next_box):
-                sep_boxes = list()
-                sep_boxes.append(next_box)
-                while True:
-                    try:
-                        index += 1
-                        next_box = boxes[index]
-                        if _nr_of_lines_equals_one(next_box):
-                            sep_boxes.append(next_box)
-                        else:
-                            break
-                    except IndexError:
-                        break
-                box_coords = _get_coords(box)
-                #print('-b, sep_boxes:')
-                #print(sep_boxes)
-                new_text, nr_of_gaps = \
-                        _mk_text_great_again(sep_boxes, box_coords, box, after=True)
-                nr_of_sep_boxes_after = nr_of_gaps
-                #print('nr_of_gaps', nr_of_gaps)
-                if new_text:
-                    box_list = _add_to_box_list(new_text, start, end, box_list)
-                else:
+                box_before = None
+            if box_before and _nr_of_lines_equals_one(box_before):
+                box_list = _add_boxes_from_before(index, box_before, boxes,\
+                        box_list, start, end)
+                continue
+            try:
+                next_box = boxes[index+1]
+            except IndexError:
+                # if neither before nor after the box in question is a candidate to
+                # fill the void it's no use to continue --> add box and continue
+                if not box_before:
                     box_list = _add_to_box_list(box.text, start, end, box_list)
+                break
+            if next_box and _nr_of_lines_equals_one(next_box):
+                print('a')
+                box_list, nr_of_sep_boxes_after = _add_boxes_from_next(index,\
+                        next_box, boxes, box_list, start, end)
+                continue
             else:
                 box_list = _add_to_box_list(box.text, start, end, box_list)
-        else:
-            box_list = _add_to_box_list(box.text, start, end, box_list)
+                continue
+        box_list = _add_to_box_list(box.text, start, end, box_list)
 
     #print()
     #print('box_list in _mk_list_of_boxes')
@@ -353,7 +360,79 @@ def _mk_list_of_boxes(boxes, start, end):
     return box_list
 
 
+def _add_boxes_from_before(index, box_before, boxes, box_list, start, end):
+    print('box_before', box_before)
+    box = boxes[index]
+    sep_boxes = list()
+    sep_boxes.append(box_before)
+    index = index-1
+    counter = 1
+    while True:
+        try:
+            index -= 1
+            box_before = boxes[index]
+            if _nr_of_lines_equals_one(box_before):
+                sep_boxes.append(box_before)
+                counter += 1
+            else:
+                break
+        except IndexError:
+            break
+    box_coords = _get_coords(box)
+    #print(sep_boxes)
+    new_text, nr_of_gaps = \
+            _mk_text_great_again(sep_boxes, box_coords, box, after=True)
+    if new_text:
+        box_list = box_list[:-counter]
+        box_list = _add_to_box_list(new_text, start, end, box_list)
+    else:
+        box_list = _add_to_box_list(box.text, start, end, box_list)
+
+    return box_list
+
+
+def _add_boxes_from_next(index, next_box, boxes, box_list, start, end):
+    box = boxes[index]
+    sep_boxes = list()
+    sep_boxes.append(next_box)
+    index = index+1
+    nr_of_sep_boxes_after = 1
+    while True:
+        try:
+            index += 1
+            next_box = boxes[index]
+            if _nr_of_lines_equals_one(next_box):
+                sep_boxes.append(next_box)
+                nr_of_sep_boxes_after += 1
+            else:
+                break
+        except IndexError:
+            break
+    box_coords = _get_coords(box)
+    #print(sep_boxes)
+    new_text, nr_of_gaps = \
+            _mk_text_great_again(sep_boxes, box_coords, box, after=True)
+    if new_text:
+        box_list = _add_to_box_list(new_text, start, end, box_list)
+    else:
+        box_list = _add_to_box_list(box.text, start, end, box_list)
+
+    return box_list, nr_of_sep_boxes_after
+
+
+def _show_box_that_could_miss_some_text(box, too_many_lines, lines_too_short):
+    print(f'too_many_lines: {too_many_lines}')
+    print(f'lines_too_short: {lines_too_short}')
+    #lines = box.text.split('\n')
+    #for index, line in enumerate(lines):
+    #    print(index, line, len(line))
+
+
 def _correct_boxlist(i, boxes, box_list, false_alarm, start, end):
+    #print()
+    #print('_correct_boxlist starting here')
+    #print('box_list on entry:')
+    #print(box_list)
     box = boxes[i]
     new_text = list()
     box_coords = _get_coords(box)
@@ -380,20 +459,24 @@ def _correct_boxlist(i, boxes, box_list, false_alarm, start, end):
         #    print(box_nr, box_text)
     if len(sep_boxes_after) > 0:
         false_alarm = False
-        print('found sep_boxes after')
-        print(sep_boxes_after)
+        #print('found sep_boxes after')
+        #print(sep_boxes_after)
         new_text, nr_of_sep_boxes_after =\
                 _mk_text_great_again(sep_boxes_after, box_coords, box,\
                 after=True, new_text=new_text)
         box_list = _add_to_box_list(new_text, start, end, box_list)
 
+    #print()
+    #print('box_list on exit:')
+    #print(box_list)
     return box_list, false_alarm, len(sep_boxes_after)
 
 
 def _add_to_box_list(new_text, start, end, box_list):
+    #print()
     #print('_add_to_box_list starting here')
     #print(new_text)
-    words = _prepare_text(new_text, start, end)
+    words = _prepare_text(new_text, start, end, name='_add_to_box_list')
     #print(words)
     if not words or words == []:
         pass
@@ -404,12 +487,8 @@ def _add_to_box_list(new_text, start, end, box_list):
     return box_list
 
 
-def _mk_text_great_again(sep_boxes,
-                         box_coords,
-                         box,
-                         before=False,
-                         after=False,
-                         new_text=list()):
+def _mk_text_great_again(sep_boxes, box_coords, box, before=False, after=False,\
+        new_text=list(), name=None):
     '''
     The problem I'm facing here is that I need to tell the function that calls
     this one how many sep_boxes actually turned out to be accepted for correction.
@@ -417,22 +496,25 @@ def _mk_text_great_again(sep_boxes,
 
     Returns a list with corrected text and the number of gaps
     '''
-    #print()
-    #print('_mk_text_great_again starting here:')
+    func_name = '_mk_text_great_again'
+    #_self_intro(func_name, name)
     before = before
     after = after
     #print(f'before: {before}, after: {after}')
     nr_of_gaps = 0
     new_text = new_text
     corrected_text = new_text
-    oddies = _find_oddies(sep_boxes, box_coords, before, after)
+    oddies = _find_oddies(sep_boxes, box_coords, before, after, name=func_name)
+    #print(oddies)
     gaps = _mk_dict_of_gaps_in_lines(oddies, box_coords)
+    #print('gaps', gaps)
     for k, v in gaps.items():
         for _, vv in v.items():
             for kee in vv.keys():
                 if kee == 'oddy':
                     nr_of_gaps += 1
     for _, gap_dict in gaps.items():
+        #print('gap_dict', gap_dict)
         gaps, new_text = _fill_gaps(gaps, box, new_text)
         corrected_text = _correct_line(gaps, new_text)
 
@@ -541,12 +623,27 @@ def _could_be_box_w_missing_text(box, start, end):
 
 
 def _could_be_lines_too_short(box):
+    '''
+    To find PDF blunders sometimes a look at a block of text can highlight lines
+    with less than 40 characters and no period or other sentence-finishing mark at
+    its end. These lines are potential candidates to insert text fragments that
+    PDF has taken out of context and inserted someplace else.
+
+    Will check if there are more than one line. If not, it doesn't make sense to
+    call this line a line that is too short and returns False.
+
+    If there are more than one line and one of them has less than 40 characters:
+    returns True.
+    '''
     quotes = ['\u201C', '\u201D', '\u201E', '\u201F', '\u2033', '\u2036', '\u0022']
     puncts = ['.', '!', '?', ':', '-', ')']
     header_shmutz = ['Landtag', 'Nordrhein-Westfalen', 'Plenarprotokoll']
     text = box.text
     text_split_in_lines = text.split('\n')
     text_split_in_lines = list(filter(None, text_split_in_lines))
+    nr_of_lines = len(text_split_in_lines)
+    if nr_of_lines < 2:
+        return False
 
     for i, line in enumerate(text_split_in_lines):
         line = line.strip()
@@ -562,14 +659,19 @@ def _could_be_lines_too_short(box):
             if line in header_shmutz:
                 continue
             else:
-                print('This line shorter than 40 chars: ', line)
+                #print('This line shorter than 40 chars: ', line)
                 return True
     return False
 
 
 def _nr_of_lines_equals_one(box):
+    '''
+    If a remark pattern is found, the function returns False since this line will be
+    skipped anyway.
+    Returns bool(True or False)
+    '''
     text = box.text
-    remark_pattern = re.compile('\((Beifall|Zuruf) .*\)')
+    remark_pattern = re.compile('\((Beifall|Zuruf).*\)')
     m = re.search(remark_pattern, text)
     if m:
         return False
@@ -646,9 +748,14 @@ def _find_sep_boxes(i, boxes, box_coords, before=False, after=False):
     return sep_boxes
 
 
-def _find_oddies(sep_boxes, box_coords, before=False, after=False):
+def _find_oddies(sep_boxes, box_coords, before=False, after=False, name=None):
+    func_name = '_find_oddies'
     #print()
-    #print('_find_oddies starting here')
+    #print(f'{func_name} starting here', end=' ')
+    #if name:
+    #    print(f'called by {name}')
+    #else:
+    #    print()
     assert before or after
     #print(f'before: {before}, after: {after}')
     x0, x1, y0, y1 = box_coords
@@ -656,6 +763,7 @@ def _find_oddies(sep_boxes, box_coords, before=False, after=False):
     nr_of_lines_to_expect = round(y_extension/11.8)
     oddies = dict()
     for j, sep_box in enumerate(sep_boxes):
+        print('sep_box', sep_box)
         #print('j, sep_box', j, sep_box)
         c = round((sep_box.x0 - x0) / 4.9)
         for index in range(nr_of_lines_to_expect):
@@ -676,7 +784,7 @@ def _find_oddies(sep_boxes, box_coords, before=False, after=False):
     return oddies
 
 
-def _mk_dict_of_gaps_in_lines(oddies, box_coords):
+def _mk_dict_of_gaps_in_lines(oddies, box_coords, name=None):
     '''
     This function takes the fragmented text pieces that were found in "oddies"
     and calculates the gap that exists in front of the lost text fragment (or
@@ -689,10 +797,10 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
         gap:{'oddy': text of lost box}
     With gap being the space between the box frame and the start of the lost box.
     '''
-    print()
-    print('_mk_dict_of_gaps_in_lines starting here')
+    func_name = '_mk_dict_of_gaps_in_lines'
+    #_self_intro(func_name, name)
     s = [(k, oddies[k]) for k in sorted(oddies, key=oddies.get)]
-    print('s', s)
+    #print('s', s)
     gaps = dict()
     for k, v in s:
         gaps[k] = dict()
@@ -700,11 +808,11 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
         #print('lost_boxes', lost_boxes)
         for i, lost_box in enumerate(lost_boxes):
             lost_text = lost_box.text.strip()
-            print('lost_text', i, lost_text)
+            #print('lost_text', i, lost_text)
             if i == 0:
                 gap = lost_box.x0 - box_coords[0]
-                print('i == 0')
-                print('gap, x0, box_coords', gap, lost_box.x0, box_coords)
+                #print('i == 0')
+                #print('gap, x0, box_coords', gap, lost_box.x0, box_coords)
                 gaps[k][gap] = dict()
                 gaps[k][gap]['oddy'] = lost_text
             elif i > 0 and i == len(lost_boxes)-1:
@@ -712,8 +820,6 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
                 gaps[k][gap] = dict()
                 gaps[k][gap]['oddy'] = lost_text
                 gap = box_coords[1] - lost_box.x1
-                gaps[k][gap] = dict()
-                gaps[k][gap]['oddy'] = ''
             else:
                 gap = lost_box.x0 - lost_boxes[i-1].x1
                 gaps[k][gap] = dict()
@@ -745,10 +851,21 @@ def _mk_dict_of_gaps_in_lines(oddies, box_coords):
             else:
                 kee = -1
 
-    #print('gaps in mk_dict_of_gaps_in_lines')
+    #print(f'gaps in {func_name}')
     #print(gaps)
     #sys.exit()
     return gaps
+
+
+def _self_intro(func_name, name):
+    print()
+    print(f'{func_name} starting here', end=' ')
+    if name:
+        print('called by {name}')
+    else:
+        print()
+
+    return None
 
 
 def _is_inside_of_box(box_coords_big, box_coords_small):
@@ -924,7 +1041,46 @@ def _connect_sentences(sentences):
     return new_sentences
 
 
-def _save_the_contributions(legislature, key, protocol_nr, start_end, sentences):
+def _connect_dates(sentences):
+    '''
+    Will connect two sentences, if the last word of the first sentence is an digit
+    and the first word in the sentence after is a month.
+    '''
+    new_sentences = list()
+    skip = False
+    months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',\
+            'September', 'Oktober', 'November', 'Dezember', 'Jan.', 'Feb.', 'Aug.',\
+            'Sept.', 'Okt.', 'Nov.', 'Dez.']
+    for i, sentence in enumerate(sentences):
+        if not skip:
+            new_sentence = ''
+        else:
+            skip = False
+            continue
+        try:
+            next_sent = sentences[i+1]
+        except IndexError:
+            new_sentences.append(sentence)
+            continue
+
+        words = sentence.split(' ')
+        words = list(filter(None, words))
+        last_word = words[-1].strip()
+        if last_word[-2].isdigit():
+            next_words = next_sent.split(' ')
+            first_word = next_words[0].strip()
+            if first_word in months:
+                new_sentence = sentence + ' ' + next_sent
+                new_sentences.append(new_sentence)
+                skip = True
+        else:
+            new_sentences.append(sentence)
+
+    return new_sentences
+
+
+def _save_the_contributions(legislature, key, protocol_nr, start_end,\
+        sentences, counter, total):
     wp = _open_dilled_wp(legislature)
     token = False
     for _, mdl in wp.MdLs.items():
@@ -945,6 +1101,7 @@ def _save_the_contributions(legislature, key, protocol_nr, start_end, sentences)
                         break
 
     if token:
+        print(f'Transferred {counter} of {total} contributions from PDF to text.')
         dir_loc = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
         dir_local = './parli_data/wf15_dilled_wps/'
         os.makedirs(dir_loc, exist_ok=True)
@@ -1083,14 +1240,14 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
     Returns a list that contains all boxes with the actual MdL's speech (still
     containing the remarks and header items etc.)
     '''
-    #print()
-    #print('_find_boxes_with_speech starting here')
+    print()
+    print('_find_boxes_with_speech starting here')
     box_list = list()
     token_speaks = False
     is_question = False
 
-    for i, page in enumerate(pages):
-        print('starting a new page:', i+int(start))
+    for j, page in enumerate(pages):
+        print('starting a new page:', j+int(start))
         for k, vv in page.items():          # k: header, columns
             print('starting a new column (or header) here:', k)
             print('key: ', k)
@@ -1101,10 +1258,13 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
             for i, box in enumerate(vv):    # vv: list with boxes
                 #print(f'{i} token_speaks:{token_speaks}')
                 #print('.', box)
-                box_text = _prepare_text(box.text, start, end, applause=True)
+                box_text = _prepare_text(box.text, start, end, applause=True,\
+                        name='_find_boxes_with_speech a')
                 #print('..', box_text)
                 if _has_no_text(box_text):
                     continue
+                if not token_speaks and int(start) == int(end) and j > 1:
+                    return box_list
                 elif kind == 'speech':
                     if not token_speaks and _is_speaker(box_text, mdl, start, end):
                         box_list.append(box)
@@ -1114,7 +1274,8 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
                             token_speaks = False
                             sent = box_list[-1].text
                             applause = True
-                            sent = _prepare_text(sent, start, end, applause)
+                            sent = _prepare_text(sent, start, end, applause,\
+                                    name='_find_boxes_with_speech b')
                             if sent:
                                 #print(sent)
                                 if _ends_with_applause(sent):
@@ -1146,6 +1307,7 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
                             token_speaks = False
                         elif 'Fr' in kind and _is_other_MdL(box_text, mdl,\
                                 first_names, last_names, start, end):
+                            print('found other MdL:')
                             if is_question:
                                 return box_list
                             token_speaks = False
@@ -1161,12 +1323,6 @@ def _find_boxes_with_speech(pages, mdl, kind, first_names, last_names, start, en
                             box_list.append(box)
                     else:
                         continue
-
-    #print()
-    #print('box_list in _find_boxes_with_speech:')
-    #for box in box_list:
-    #    print(box)
-    #sys.exit()
 
     return box_list
 
@@ -1414,7 +1570,7 @@ def _is_muendl_anfrage(box_text, start, end):
     '''
     anfrage = False
 
-    words = _prepare_text(box_text, start, end)
+    words = _prepare_text(box_text, start, end, name='_is_muendl_anfrage')
     if not words:
         return False
 
@@ -1449,7 +1605,7 @@ def _is_anfrage_of_mdl(box_text, mdl, start, end):
     last_name = _low_cap_all(mdl.last_name)
     last_names = last_name.split(' ')
 
-    words = _prepare_text(box_text, start, end)
+    words = _prepare_text(box_text, start, end, name='_is_anfrage_of_mdl')
     print(words)
     if not words:
         return False
@@ -1507,15 +1663,19 @@ def _is_other_MdL(box_text, mdl, vN_list, nN_list, start, end):
             break
 
     if names_to_check:
-        #print(first_word_upper)
+        #print('first_word_upper:', first_word_upper)
         if first_word_upper in nN_list:
             if first_word_upper != last_name:
                 return True
+        else:
+            for name in nN_list:
+                if first_word_upper in name:
+                    return True
     else:
         return False
 
 
-def _prepare_text(box_text, start, end, applause=False):
+def _prepare_text(box_text, start, end, applause=False, name=None):
     '''
     Will look for text that belongs into the header and take it out
         --> clean_box_text
@@ -1530,12 +1690,24 @@ def _prepare_text(box_text, start, end, applause=False):
     '''
     #print()
     #print('_prepare_text starting here')
-    parties = ['(GRÜNE)', '(SPD)', '(CDU)', '(FDP)', '(PIRATEN)', '(AfD)']
+    #print('box_text before')
+    #print(box_text)
+    if box_text:
+        try:
+            box_text = box_text.strip()
+        except AttributeError:
+            box_text = '\n'.join(sent for sent in box_text)
+            box_text = box_text.strip()
+        try:
+            if box_text[0] == '(' and box_text[-1] == ')':
+                return None
+        except IndexError:
+            return None
     clean_box_text = _text_without_header_items(box_text, start, end)
     if not clean_box_text:
         return None
 
-    #print('clean_box_text before')
+    #print('box_text --> clean_box_text')
     #print(clean_box_text)
     if applause:
         words = clean_box_text.split(' ')
@@ -1544,24 +1716,8 @@ def _prepare_text(box_text, start, end, applause=False):
             words = [w for w in words if w != '\n']
             return words
 
-    remark_pattern1 = re.compile('^\(.*\n*.*\n*.*\)$')
-    remark_pattern2 = re.compile('\((Beifall|Zuruf) .*\)')
-    remark_pattern3 = re.compile('\[.*\]\:.*')
-    remark_patterns = [remark_pattern1, remark_pattern2, remark_pattern3]
+    clean_box_text = _find_and_replace_remarks(clean_box_text)
 
-    for remark_pattern in remark_patterns:
-        m = re.search(remark_pattern, clean_box_text)
-        if m:
-            pattern = m[0]
-            #print('pattern', pattern)
-            if pattern in parties:
-                pass
-            else:
-                clean_box_text = clean_box_text.replace(pattern, '')
-                #print(clean_box_text)
-    if applause:
-    #    print('clean_box_text after\n', clean_box_text)
-        pass
     words = clean_box_text.split(' ')
     words = list(filter(None, words))
     words = [w for w in words if w != '\n']
@@ -1570,6 +1726,48 @@ def _prepare_text(box_text, start, end, applause=False):
     #words = _cut_off_akad_titel(words)
 
     return words
+
+
+def _find_and_replace_remarks(clean_box_text):
+    #print()
+    #print('_find_and_replace_remarks starting here')
+    # I cannot loop over these patterns putting them in a list because list will
+    # not follow my intention of taking remark_pattern1 first.
+    remark_pattern1 = re.compile('^\(.*\n*.*\)$')
+    remark_pattern2 = re.compile('\((Beifall|Zuruf) .*\)')
+    remark_pattern3 = re.compile('\[.*\]\:.*')
+
+    lines = clean_box_text.split('\n')
+    clean_box_text = list()
+    for i, line in enumerate(lines):
+        #print(i, line, len(line))
+        m1 = re.search(remark_pattern1, line)
+        m2 = re.search(remark_pattern2, line)
+        m3 = re.search(remark_pattern3, line)
+        if m1:
+            line = _replace_remark_patterns(m1, line)
+        elif m2:
+            line = _replace_remark_patterns(m2, line)
+        elif m3:
+            line = _replace_remark_patterns(m3, line)
+        clean_box_text.append(line)
+    clean_box_text = '\n'.join(line for line in clean_box_text if line)
+
+    return clean_box_text
+
+
+def _replace_remark_patterns(m, line):
+    parties = ['(GRÜNE)', '(SPD)', '(CDU)', '(FDP)', '(PIRATEN)', '(AfD)']
+    pattern = m[0]
+    #print('pattern', pattern)
+    if pattern in parties:
+        pass
+    else:
+        new_line = line.replace(pattern, '')
+        #print('line without remark:')
+        #print(new_line)
+
+    return new_line
 
 
 def _cut_off_akad_titel(words):
@@ -2176,7 +2374,6 @@ def _save_hyphened_combo(combi):
 def _get_rid_of_remarks_within_box(boxes):
     #print()
     #print('_get_rid_of_remarks_within_box')
-    #_print_current_results(boxes)
     box_list = list()
     for j, box in enumerate(boxes):
         for text in box:
@@ -2185,8 +2382,6 @@ def _get_rid_of_remarks_within_box(boxes):
                 continue
             new_text = ''
             lines = text.split('\n')
-            #print('lines:')
-            #print(lines)
             l = len(lines)
             for i in range(l):
                 line = lines[i]
@@ -2194,14 +2389,16 @@ def _get_rid_of_remarks_within_box(boxes):
                 #print('line:', line)
                 if line.startswith('(Beifall') or line.startswith('(Zuruf'):
                     continue
+                elif line.startswith('(') and line.endswith(')'):
+                    continue
                 if i+1 < l:
                     new_text += ' ' + line + '\n'
                 else:
                     new_text += ' ' + line
             box_list.append([new_text])
 
-    #for box in box_list:
-    #    print(box)
+    #for i, box in enumerate(box_list):
+    #    print(i, box)
     #sys.exit()
     return box_list
 
