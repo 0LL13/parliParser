@@ -1102,7 +1102,7 @@ def _save_the_contributions(legislature, key, protocol_nr, start_end,\
 
     if token:
         print(f'Transferred {counter} of {total} contributions from PDF to text.')
-        dir_loc = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+        dir_loc = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
         dir_local = './parli_data/wf15_dilled_wps/'
         os.makedirs(dir_loc, exist_ok=True)
 
@@ -1135,7 +1135,7 @@ def _reset_contri(legislature, key, protocol_nr, start_end):
                     break
 
     if token:
-        dir_loc = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+        dir_loc = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
         dir_local = './parli_data/wf15_dilled_wps/'
         os.makedirs(dir_loc, exist_ok=True)
 
@@ -2800,7 +2800,7 @@ def _open_dilled_wp(legislature):
     '''
     '''
     try:
-        dir_ = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+        dir_ = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
         print(os.listdir(dir_))
         latest_file = dir_ + sorted(os.listdir(dir_))[-1]
         print(f'opening: {latest_file}')

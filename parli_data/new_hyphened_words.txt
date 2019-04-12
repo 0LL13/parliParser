@@ -1,4 +1,8 @@
 
+<<<<<<< HEAD
 CDU-Vertreter
 50-%-Grenze
 Baumert-Kommission
+=======
+Neandertal-Fraktion
+>>>>>>> 06068275356b41eb1e4d8cfc344e3a2db9579e3e

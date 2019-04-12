@@ -1,2 +1,6 @@
 
+<<<<<<< HEAD
 Lobbygruppen- und
+=======
+Bauch- und
+>>>>>>> 06068275356b41eb1e4d8cfc344e3a2db9579e3e

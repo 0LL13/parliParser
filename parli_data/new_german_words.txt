@@ -1,4 +1,5 @@
 
+<<<<<<< HEAD
 Richtlinienkompetenz
 Bandbreitenüberschreitungen
 Horstmar
@@ -56,3 +57,40 @@ Schulverwaltung
 Lehramtsausbildung
 Lehramtsausbildung
 Systementwicklung
+=======
+leistungsfeindlichen
+Fehlsteuerungen
+Achillesfersen
+Fehlsteuerungen
+leistungsfeindlicher
+lifestylemäßig
+Bildungsverständnis
+Bewilligungsverfahren
+Förderkriterien
+Ressourcenverschwendung
+zukunftsorientierten
+leistungsfördernde
+zukunftsorientierten
+Jahreszeit
+hineingepackt
+Abwehrschlachten
+Senne/Egge
+Heuwinkel
+Erkenntnisgewinnes
+Bewilligungsverfahren
+Schulsystems
+Aufbruchstimmung
+apokalyptische
+Bruderzwist
+zukunftsorientierten
+ineffiziente
+Geschätzter
+Sprachförderungspolitik
+Marginalien
+Entwicklungszeit
+Wissenschaftlerin
+Pilotstudie
+Sprachstandsfeststellung
+Schwimmhilfen
+Sprachförderkonzepte
+>>>>>>> 06068275356b41eb1e4d8cfc344e3a2db9579e3e
