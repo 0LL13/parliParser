@@ -9,4 +9,4 @@ scraper_lib/__pycache__
 parli_data/test
 parli_data/wf*
 tags
-
+*.odp
