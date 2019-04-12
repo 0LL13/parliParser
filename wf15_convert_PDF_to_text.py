@@ -6,6 +6,10 @@ import nltk
 import os
 import re
 import sys
+try:
+    import spacyss
+except ModuleNotFoundError as e:
+    print(e)
 
 from collections import namedtuple
 from collections import defaultdict
@@ -134,6 +138,8 @@ def wf15_convert_PDF2text_and_save():
                     #if '10441' in start_end: sys.exit()     #Beer
                     #if '7034' in start_end: sys.exit()
                     #if '5069' in start_end: sys.exit()
+                    #if '6395' in start_end: sys.exit()
+                    if '4935' in start_end: sys.exit()
 
                     token = _save_the_contributions(legislature, key, protocol_nr,\
                             start_end, sentences, counter, total)
@@ -159,7 +165,8 @@ def _show_actual_contribution(mdl, legislature):
             #if '17017' in start_end:
             #if '9671' in start_end:
             #if '3404' in start_end:
-            if '12518' in start_end:
+            #if '12518' in start_end:
+            if '6395' in start_end:
                 print('protocol_nr, start_end:', protocol_nr, start_end)
                 print()
                 kind = _get_kind_of_contribution(contri)
@@ -294,7 +301,7 @@ def _mk_list_of_boxes(boxes, start, end, name=None):
     Returns a list with texts as found in boxes coming from pdf2textbox
     '''
     func_name = '_mk_list_of_boxes starting here'
-    #_self_intro(func_name, name)
+    _self_intro(func_name, name)
     #_print_current_results(boxes)
     box_list = list()
     sep_boxes_before = list()
@@ -302,11 +309,18 @@ def _mk_list_of_boxes(boxes, start, end, name=None):
     words = new_text = ''
     nr_of_sep_boxes_before = 0       # tells how many boxes to take out of box_list
     nr_of_sep_boxes_after = 0        # tells how many boxes to skip later on
+    snip = False
     for i, box in enumerate(boxes):
         index = i
         if nr_of_sep_boxes_after > 0:
-            #print('nr_of_sep_boxes_after > 0, snipping this box:')
+            print('nr_of_sep_boxes_after > 0, snipping this box:')
+            print(box)
+            try:
+                print(box_list[-1][0].split('\n')[:3])
+            except (IndexError, AttributeError):
+                pass
             nr_of_sep_boxes_after -= 1
+            snip = True
             continue
         #print(index, box)
         #print('nr_of_sep_boxes_after:', nr_of_sep_boxes_after)
@@ -318,13 +332,17 @@ def _mk_list_of_boxes(boxes, start, end, name=None):
         if too_many_lines:
             box_list, false_alarm, nr_of_sep_boxes_after =\
                     _correct_boxlist(i, boxes, box_list, false_alarm, start, end)
+#            try:
+#                print(box_list[-1][0].split('\n')[:3])
+#            except (IndexError, AttributeError):
+#                pass
             if false_alarm:
                 box_list = _add_to_box_list(box.text, start, end, box_list)
                 continue
         if lines_too_short:
             lines = box.text.split('\n')
-            for j, line in enumerate(lines):
-                print(j, line)
+            #for j, line in enumerate(lines):
+            #    print(j, line)
             try:
                 box_before = boxes[index-1]
             except IndexError:
@@ -342,26 +360,28 @@ def _mk_list_of_boxes(boxes, start, end, name=None):
                     box_list = _add_to_box_list(box.text, start, end, box_list)
                 break
             if next_box and _nr_of_lines_equals_one(next_box):
-                print('a')
                 box_list, nr_of_sep_boxes_after = _add_boxes_from_next(index,\
                         next_box, boxes, box_list, start, end)
                 continue
             else:
                 box_list = _add_to_box_list(box.text, start, end, box_list)
                 continue
+        if snip:
+            snip = False
+            continue
         box_list = _add_to_box_list(box.text, start, end, box_list)
 
-    #print()
-    #print('box_list in _mk_list_of_boxes')
-    #for i, box in enumerate(box_list):
-    #    print(i, box)
-    #sys.exit()
+    print()
+    print('box_list in _mk_list_of_boxes')
+    for i, box in enumerate(box_list):
+        print(i, box)
+    sys.exit()
 
     return box_list
 
 
 def _add_boxes_from_before(index, box_before, boxes, box_list, start, end):
-    print('box_before', box_before)
+    #print('box_before', box_before)
     box = boxes[index]
     sep_boxes = list()
     sep_boxes.append(box_before)
@@ -763,7 +783,7 @@ def _find_oddies(sep_boxes, box_coords, before=False, after=False, name=None):
     nr_of_lines_to_expect = round(y_extension/11.8)
     oddies = dict()
     for j, sep_box in enumerate(sep_boxes):
-        print('sep_box', sep_box)
+        #print('sep_box', sep_box)
         #print('j, sep_box', j, sep_box)
         c = round((sep_box.x0 - x0) / 4.9)
         for index in range(nr_of_lines_to_expect):
@@ -1102,8 +1122,8 @@ def _save_the_contributions(legislature, key, protocol_nr, start_end,\
 
     if token:
         print(f'Transferred {counter} of {total} contributions from PDF to text.')
-        dir_loc = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
-        dir_local = './parli_data/wf15_dilled_wps/'
+
+        dir_loc = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
         os.makedirs(dir_loc, exist_ok=True)
 
         ln = key.split('_')[0].lower()
@@ -1113,6 +1133,7 @@ def _save_the_contributions(legislature, key, protocol_nr, start_end,\
         with open(file_loc, 'wb') as fout:
             dill.dump(wp, fout)
 
+        dir_local = './parli_data/wf15_dilled_wps/'
         file_local = dir_local + 'WP_{}.dill'.format(legislature)
         with open(file_loc, 'wb') as fout:
             dill.dump(wp, fout)
@@ -1135,9 +1156,14 @@ def _reset_contri(legislature, key, protocol_nr, start_end):
                     break
 
     if token:
-        dir_loc = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
-        dir_local = './parli_data/wf15_dilled_wps/'
-        os.makedirs(dir_loc, exist_ok=True)
+        try:
+            dir_loc = f'/home/frodo/Python-Projekte/parli_NRW/parli_NRW/data/WP{legislature}/'
+            dir_local = './parli_data/wf15_dilled_wps/'
+            os.makedirs(dir_loc, exist_ok=True)
+        except PermissionError:
+            dir_loc = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+            dir_local = './parli_data/wf15_dilled_wps/'
+            os.makedirs(dir_loc, exist_ok=True)
 
         ln = key.split('_')[0].lower()
         fn = key.split('_')[1].split(' ')[0]
@@ -2147,6 +2173,8 @@ def _find_last_remarks(sents):
                 continue
         elif m:
            continue
+        elif sent.endswith(')') and 'Redezeit' in sent:
+            continue
         else:
             sentences.append(sent)
 
@@ -2808,18 +2836,26 @@ def _open_dilled_wp(legislature):
             wp = dill.load(fin)
     except (FileNotFoundError, IsADirectoryError):
         try:
-            print(f'did not find {latest_file}')
-            dir_local = f'./parli_data/wf15_dilled_wps/'
-            file_local = dir_local + 'WP_{}.dill'.format(legislature)
-            print(f'opening file: {file_local}')
-            with open(file_local, 'rb') as fin:
+            dir_ = f'/home/sam/projects/vEnvs/parli_NRW/parli_NRW/data/WP{legislature}/'
+            print(os.listdir(dir_))
+            latest_file = dir_ + sorted(os.listdir(dir_))[-1]
+            print(f'opening: {latest_file}')
+            with open(latest_file, 'rb') as fin:
                 wp = dill.load(fin)
         except FileNotFoundError:
-            dir_loc = f'./parli_data/wf13_contributions/'
-            file_loc = dir_loc + 'WP_{}.dill'.format(legislature)
-            print(f'opening file: {file_loc}')
-            with open(file_loc, 'rb') as fin:
-                wp = dill.load(fin)
+            try:
+                print(f'did not find {latest_file}')
+                dir_local = f'./parli_data/wf15_dilled_wps/'
+                file_local = dir_local + 'WP_{}.dill'.format(legislature)
+                print(f'opening file: {file_local}')
+                with open(file_local, 'rb') as fin:
+                    wp = dill.load(fin)
+            except FileNotFoundError:
+                dir_loc = f'./parli_data/wf13_contributions/'
+                file_loc = dir_loc + 'WP_{}.dill'.format(legislature)
+                print(f'opening file: {file_loc}')
+                with open(file_loc, 'rb') as fin:
+                    wp = dill.load(fin)
     except IndexError:
         try:
             print(f'did not find a file in {dir_}')
@@ -2834,7 +2870,6 @@ def _open_dilled_wp(legislature):
             print(f'opening file: {file_loc}')
             with open(file_loc, 'rb') as fin:
                 wp = dill.load(fin)
-
 
     return wp
 
